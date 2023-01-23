@@ -22,6 +22,17 @@ if(values.service.value){
     empty = false
 }
 
+if(values.resource.value){
+    let module = `nest g module models/${values.resource.forModel || values.resource.value} ${values.service.withSpec ? '': '--no-spec'}`
+    let service  = `nest g service models/${values.resource.forModel || values.resource.value}/services/${values.resource.value}.v${values.resource.version} --flat ${values.resource.withSpec ? '': '--no-spec'}`
+    let controller = `nest g controller models/${values.resource.forModel || values.resource.value}/controllers/${values.resource.value}.v${values.resource.version} --flat ${values.resource.withSpec ? '': '--no-spec'}`
+    execSync(module)
+    execSync(service)
+    execSync(controller)
+    cmd = module +'\n'+service +'\n'+controller
+    empty = false
+}
+
 
 if(empty) console.error('No argument passed, make sure to pass "--" while running "npm run mvc"');
 else console.log(cmd);
@@ -32,7 +43,7 @@ else console.log(cmd);
 /** Function For Getting the arguments */
 
 interface InnerValue { value: string; forModel: string; version: string, withSpec: boolean }
-interface Value { controller: InnerValue; module: InnerValue; service: InnerValue }
+interface Value { controller: InnerValue; module: InnerValue; service: InnerValue, resource: InnerValue }
 function getValue(): Value {
 
     const args = process.argv;
@@ -45,6 +56,7 @@ function getValue(): Value {
         controller: div,
         module: div,
         service: div,
+        resource: div,
     }
     
     index = args.indexOf('--for-model');
@@ -59,6 +71,15 @@ function getValue(): Value {
     if(index == -1) index = args.indexOf('-ws')
     if(index != -1) withSpec = true;
     
+
+    index = args.indexOf('--resource')
+    if(index == -1) index = args.indexOf('-r')
+    if(index != -1) res.resource = {
+        value: args[ index + 1 ],
+        forModel,
+        version,
+        withSpec
+    }
 
     index = args.indexOf('--controller')
     if(index == -1) index = args.indexOf('-c')
