@@ -19,12 +19,12 @@ export class UsersV1Service {
         return users;
     }
 
-    async findOne(filter: Prisma.UserFindUniqueArgs){
-        const user = await this.prisma.user.findUnique(filter);
+    async findOne(filter: Prisma.UserFindFirstArgs){
+        const user = await this.prisma.user.findFirst(filter);
         return user;
     }
 
-    async findOneOrFail(filter: Prisma.UserFindUniqueArgs){
+    async findOneOrFail(filter: Prisma.UserFindFirstArgs){
         const user = await this.findOne(filter);
         if(!user) throw new NotFoundException();
         return user;
