@@ -4,6 +4,8 @@ import { AuthV1Controller } from './controllers/auth.v1.controller';
 import { UsersV1Service } from '../users/services/users.v1.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService, ConfigModule } from '@nestjs/config';
+import { AccessTokenStrategy } from './strategies/access-token.strategy';
+import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
 
 @Module({
   imports: [
@@ -15,7 +17,7 @@ import { ConfigService, ConfigModule } from '@nestjs/config';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthV1Service, UsersV1Service],
+  providers: [AuthV1Service, UsersV1Service, AccessTokenStrategy, RefreshTokenStrategy],
   controllers: [AuthV1Controller],
 })
 export class AuthModule {}
