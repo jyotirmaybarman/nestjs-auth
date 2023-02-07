@@ -4,6 +4,10 @@ import { UsersModule } from './models/users/users.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './models/auth/auth.module';
 import { redisStore } from 'cache-manager-ioredis-yet';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { join } from 'path';
+
 
 @Module({
   imports: [
@@ -21,6 +25,31 @@ import { redisStore } from 'cache-manager-ioredis-yet';
         }),
       }),
       isGlobal: true
+    }),
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        transport: {
+          host: configService.get('SMTP_HOST'),
+          port: configService.get('SMTP_PORT'),
+          auth: {
+            user: configService.get('SMTP_USERNAME'),
+            pass: configService.get('SMTP_PASSWORD'),
+          },
+          from: {
+            address: configService.get('SMTP_FROM_ADDRESS'),
+            name: configService.get('SMTP_FROM_NAME')
+          }
+        },
+        template:{
+          dir: join(__dirname, 'providers', 'emails'),
+          adapter: new HandlebarsAdapter(),
+          options:{
+            strict: true
+          }
+        },
+      }),
     })
   ],
 })
