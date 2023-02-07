@@ -27,13 +27,12 @@ export class RefreshTokenStrategy extends PassportStrategy(
   }
 
   validate(req: Request, payload: JwtPayload) {
-    const refreshToken = req.cookies.token;
-    console.log(refreshToken);
-    if (!refreshToken) throw new ForbiddenException('invlaid refresh token');
+    const refresh_token = req.cookies.token;
+    if (!refresh_token) throw new ForbiddenException('invlaid refresh token');
 
     return {
       ...payload,
-      refreshToken,
+      refresh_token,
     };
   }
 }
