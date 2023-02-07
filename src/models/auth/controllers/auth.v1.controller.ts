@@ -23,8 +23,8 @@ export class AuthV1Controller {
     let result = await this.authService.login(data);
 
     const expiry = data.remember
-      ? 1000 * 60 * 60 * 24 * 7   // 7 days
-      : 1000 * 60 * 60 * 24;      // 1 day
+      ? 1000 * 60 * 60 * 24 * 7 // 7 days
+      : 1000 * 60 * 60 * 24; // 1 day
 
     return res
       .status(200)
@@ -51,5 +51,24 @@ export class AuthV1Controller {
   @UseGuards(RefreshTokenGuard)
   async refreshAccessToken(@CurrentUser() user: JwtPayloadWithRt) {
     return await this.authService.refreshAccessToken(user);
+  }
+
+  @Post('logout')
+  @UseGuards(RefreshTokenGuard)
+  async logout(@CurrentUser() user: JwtPayloadWithRt, @Res() res: Response) {
+    const result = await this.authService.logout(user);
+    return res
+      .status(200)
+      .cookie('token', null, {
+        sameSite: 'strict',
+        path: '/',
+        expires: new Date(),
+        httpOnly: true,
+        secure: false,
+      })
+      .json({
+        message: result.message,
+        access_token: null,
+      });
   }
 }

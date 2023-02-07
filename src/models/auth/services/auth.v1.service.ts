@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  CACHE_MANAGER,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { UsersV1Service } from '../../users/services/users.v1.service';
 import { RegisterDto } from '../dtos/register.dto';
@@ -13,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { LoginDto } from '../dtos/login.dto';
 import { JwtPayload } from 'src/common/types/jwt-payload.type';
 import { JwtPayloadWithRt } from 'src/common/types/jwt-payload-with-rt.type';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class AuthV1Service {
@@ -20,6 +24,7 @@ export class AuthV1Service {
     private readonly usersService: UsersV1Service,
     private readonly jwt: JwtService,
     private readonly configService: ConfigService,
+    @Inject(CACHE_MANAGER) private redis: Cache,
   ) {}
 
   async register(data: RegisterDto) {
@@ -110,7 +115,9 @@ export class AuthV1Service {
     if (!isMatch) throw new BadRequestException('invalid username or password');
 
     // generate tokens
-    let refresh_expiry = data.remember ? '7d' : '1d';
+    let refresh_expiry = data.remember
+      ? 1000 * 60 * 60 * 24 * 7
+      : 1000 * 60 * 60 * 24;
     const refresh_token = this.generateRefreshToken(
       { email: user.email, sub: user.id },
       { expiresIn: refresh_expiry },
@@ -120,7 +127,8 @@ export class AuthV1Service {
       { expiresIn: '15m' },
     );
 
-    // TODO: add refresh_token to redis to maintain whitelist
+    // add refresh_token to redis to maintain whitelist
+    await this.redis.set(user.id, refresh_token, refresh_expiry);
 
     return {
       refresh_token,
@@ -142,14 +150,26 @@ export class AuthV1Service {
   }
 
   async refreshAccessToken(user: JwtPayloadWithRt) {
+    const exists = await this.redis.get<string>(user.sub);
+
+    if (!exists || exists != user.refresh_token) {
+      throw new UnauthorizedException('invalid refresh token');
+    }
+
     const access_token = this.generateAccessToken(
       { email: user.email, sub: user.sub },
       { expiresIn: '15m' },
     );
-    // TODO: check REFRESH_TOKEN to verify if it is in the whitelist
-    // TODO: ADD REFRESH_TOKEN to redis to maintain whitelist
+
     return {
-      access_token
+      access_token,
+    };
+  }
+
+  async logout(user: JwtPayloadWithRt) {
+    await this.redis.del(user.sub);
+    return {
+      message: 'logged out successfully',
     };
   }
 
