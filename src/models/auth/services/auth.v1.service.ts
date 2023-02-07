@@ -1,10 +1,18 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { UsersV1Service } from '../../users/services/users.v1.service';
 import { RegisterDto } from '../dtos/register.dto';
 import * as bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { LoginDto } from '../dtos/login.dto';
+import { JwtPayload } from 'src/common/types/jwt-payload.type';
+import { JwtPayloadWithRt } from 'src/common/types/jwt-payload-with-rt.type';
 
 @Injectable()
 export class AuthV1Service {
@@ -27,6 +35,7 @@ export class AuthV1Service {
       { email: data.email },
       {
         secret: this.configService.get('JWT_VERIFY_EMAIL_SECRET'),
+        expiresIn: '1h',
       },
     );
 
@@ -46,5 +55,123 @@ export class AuthV1Service {
     return {
       message: 'registered ! check email for confirmation link',
     };
+  }
+
+  async verifyEmail(verification_token: string) {
+    let valid: { email: string } = null;
+    try {
+      valid = await this.jwt.verifyAsync(verification_token, {
+        secret: this.configService.get('JWT_VERIFY_EMAIL_SECRET'),
+      });
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException('something went wrong');
+    }
+    if (!valid) throw new BadRequestException('invalid verification token');
+
+    // update user as verified
+    const user = await this.usersService.findOne({
+      where: {
+        email: valid.email,
+        verification_token: {
+          not: null,
+        },
+      },
+    });
+    if (!user) throw new BadRequestException('invalid verification token');
+
+    await this.usersService.updateOne({
+      data: {
+        verified: true,
+        verification_token: null,
+      },
+      where: {
+        id: user.id,
+      },
+    });
+
+    return {
+      message: 'email address verified, you may login now !',
+    };
+  }
+
+  async login(data: LoginDto) {
+    const user = await this.usersService.findOne({
+      where: {
+        email: data.email,
+        verified: true,
+      },
+    });
+
+    if (!user) throw new BadRequestException('invalid username or password');
+
+    // check password
+    const isMatch = await bcrypt.compare(data.password, user.password);
+    if (!isMatch) throw new BadRequestException('invalid username or password');
+
+    // generate tokens
+    let refresh_expiry = data.remember ? '7d' : '1d';
+    const refresh_token = this.generateRefreshToken(
+      { email: user.email, sub: user.id },
+      { expiresIn: refresh_expiry },
+    );
+    const access_token = this.generateAccessToken(
+      { email: user.email, sub: user.id },
+      { expiresIn: '15m' },
+    );
+
+    // TODO: add refresh_token to redis to maintain whitelist
+
+    return {
+      refresh_token,
+      access_token,
+      message: 'successfully logged in',
+    };
+  }
+
+  async getLoggedInProfile(user: JwtPayload) {
+    const profile = await this.usersService.findOne({
+      where: {
+        id: user.sub,
+      },
+    });
+
+    if (!profile) throw new NotFoundException('user not found');
+
+    return profile;
+  }
+
+  async refreshAccessToken(user: JwtPayloadWithRt) {
+    const access_token = this.generateAccessToken(
+      { email: user.email, sub: user.sub },
+      { expiresIn: '15m' },
+    );
+    // TODO: check REFRESH_TOKEN to verify if it is in the whitelist
+    // TODO: ADD REFRESH_TOKEN to redis to maintain whitelist
+    return {
+      access_token
+    };
+  }
+
+  generateRefreshToken(
+    data: { sub: string; email: string },
+    options?: { expiresIn: string | number },
+  ): string {
+    let refresh_token = this.jwt.sign(data, {
+      secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET'),
+      expiresIn: options.expiresIn ? options.expiresIn : '7d',
+    });
+    return refresh_token;
+  }
+
+  generateAccessToken(
+    data: { sub: string; email: string },
+    options?: { expiresIn: number | string },
+  ): string {
+    let access_token = this.jwt.sign(data, {
+      secret: this.configService.get('JWT_ACCESS_TOKEN_SECRET'),
+      expiresIn: options.expiresIn ? options.expiresIn : '10m',
+    });
+    return access_token;
   }
 }
