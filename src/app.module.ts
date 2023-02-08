@@ -7,6 +7,7 @@ import { redisStore } from 'cache-manager-ioredis-yet';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
+import { ServeStaticModule } from '@nestjs/serve-static';
 
 
 @Module({
@@ -50,6 +51,9 @@ import { join } from 'path';
           }
         },
       }),
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
     })
   ],
 })
