@@ -3,7 +3,6 @@ import {
   CACHE_MANAGER,
   Inject,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -120,7 +119,7 @@ export class AuthV1Service {
       });
     } catch (error) {
       console.log(error);
-      throw new InternalServerErrorException('something went wrong');
+      throw new BadRequestException('invalid verification token');
     }
     if (!valid) throw new BadRequestException('invalid verification token');
 
