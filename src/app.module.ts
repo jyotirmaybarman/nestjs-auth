@@ -8,6 +8,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { BullModule } from '@nestjs/bull';
 
 
 @Module({
@@ -54,7 +55,17 @@ import { ServeStaticModule } from '@nestjs/serve-static';
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
-    })
+    }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        redis:{
+          host: configService.get('REDIS_HOST'),
+          port: configService.get('REDIS_PORT'),
+        }
+      })      
+    }),
   ],
 })
 export class AppModule {}
