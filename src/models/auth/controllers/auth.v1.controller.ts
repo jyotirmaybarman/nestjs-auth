@@ -8,6 +8,7 @@ import { JwtPayload } from '../../../common/types/jwt-payload.type';
 import { RefreshTokenGuard } from '../../../common/guards/refresh-token.guard';
 import { Response } from 'express';
 import { JwtPayloadWithRt } from 'src/common/types/jwt-payload-with-rt.type';
+import { ResendVerificationDto } from '../dtos/resend-verification.dto';
 
 @Controller('/api/v1/auth/')
 export class AuthV1Controller {
@@ -16,6 +17,11 @@ export class AuthV1Controller {
   @Post('register')
   async register(@Body() data: RegisterDto) {
     return await this.authService.register(data);
+  }
+
+  @Post('resend-verification')
+  async resendVerificationEmail(@Body() data: ResendVerificationDto) {
+    return await this.authService.resendVerificationEmail(data);
   }
 
   @Post('login')
