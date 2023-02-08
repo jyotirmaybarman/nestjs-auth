@@ -11,13 +11,15 @@ import { RegisterDto } from '../dtos/register.dto';
 import * as bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService, ConfigModule } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { LoginDto } from '../dtos/login.dto';
 import { JwtPayload } from 'src/common/types/jwt-payload.type';
 import { JwtPayloadWithRt } from 'src/common/types/jwt-payload-with-rt.type';
 import { Cache } from 'cache-manager';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ResendVerificationDto } from '../dtos/resend-verification.dto';
+import { AuthQueueProducer } from '../../../providers/queue/producers/auth.producer';
+import { SendEmailDto } from '../dtos/send-email.dto';
 
 @Injectable()
 export class AuthV1Service {
@@ -26,6 +28,7 @@ export class AuthV1Service {
     private readonly jwt: JwtService,
     private readonly configService: ConfigService,
     private readonly mailerService: MailerService,
+    private readonly authQueueProducer: AuthQueueProducer,
     @Inject(CACHE_MANAGER) private redis: Cache,
   ) {}
 
@@ -59,26 +62,22 @@ export class AuthV1Service {
     });
 
     let verification_link = `${this.configService.get('FRONTEND_VERIFICATION_URL')}${verification_token}`;
+   
 
-    // console.log(user);
-    await this.mailerService.sendMail({
-      template: 'verify-email',
-      to: user.email,
-      subject: "Verify your email address",
-      context:{
-        verification_link,
-        contact_email: "contact@developerzilla.com"
-      }
-    });
+    // queue the email send
+    this.authQueueProducer.queueSendVerificationEmail({
+      email: user.email,
+      verification_link,
+      contact_email: "contact@developerzilla.com",
+    })
 
-    // TODO: move mail sending to a queue
 
     return {
       message: 'registered ! check email for confirmation link',
     };
   }
 
-  async resendVerificationEmail(data: ResendVerificationDto) {
+  async queueResendVerificationEmail(data: ResendVerificationDto) {
     const user = await this.usersService.findOne({
       where:{
         email: data.email,
@@ -94,16 +93,13 @@ export class AuthV1Service {
     });
     if(!user) throw new NotFoundException('invalid email address');
     let verification_link = `${this.configService.get('FRONTEND_VERIFICATION_URL')}${user.verification_token}`;
-    // TODO: move mail sending to a queue
-    await this.mailerService.sendMail({
-      template: "verify-email",
-      context:{
-        verification_link,
-        contact_email: "contact@developerzilla.com"
-      },
-      to: user.email,
-      subject: "Verify your email address",
-    });
+    
+    // queue email sending
+    this.authQueueProducer.queueSendVerificationEmail({
+      email: user.email,
+      verification_link,
+      contact_email: "contact@developerzilla.com",
+    })
 
     return {
       message: "email resent successfully"
@@ -220,6 +216,22 @@ export class AuthV1Service {
     return {
       message: 'logged out successfully',
     };
+  }
+
+  async sendVerificationEmail(data: SendEmailDto){
+    console.log("sending verification email");
+    
+     await this.mailerService.sendMail({
+      template: 'verify-email',
+      to: data.email,
+      subject: "Verify your email address",
+      context:{
+        verification_link: data.verification_link,
+        contact_email: data.contact_email
+      }
+    });
+    console.log("verification email sent to " + data.email);
+    return true;
   }
 
   generateRefreshToken(

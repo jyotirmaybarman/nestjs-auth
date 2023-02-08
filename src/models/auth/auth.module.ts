@@ -6,6 +6,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigService, ConfigModule } from '@nestjs/config';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
+import { AuthQueueProducer } from '../../providers/queue/producers/auth.producer';
+import { QUEUES } from 'src/providers/queue/queues.constant';
+import { BullModule } from '@nestjs/bull';
+import { AuthQueueConsumer } from '../../providers/queue/consumers/auth-queue.consumer';
 
 @Module({
   imports: [
@@ -16,8 +20,18 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
       }),
       inject: [ConfigService],
     }),
+    BullModule.registerQueue({
+      name: QUEUES.AUTH_QUEUE,
+    }),
   ],
-  providers: [AuthV1Service, UsersV1Service, AccessTokenStrategy, RefreshTokenStrategy],
+  providers: [
+    AuthV1Service,
+    UsersV1Service,
+    AccessTokenStrategy,
+    RefreshTokenStrategy,
+    AuthQueueProducer,
+    AuthQueueConsumer
+  ],
   controllers: [AuthV1Controller],
 })
 export class AuthModule {}

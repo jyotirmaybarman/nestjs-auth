@@ -27,7 +27,7 @@ export class AuthV1Controller {
 
   @Post('resend-verification')
   async resendVerificationEmail(@Body() data: ResendVerificationDto) {
-    return await this.authService.resendVerificationEmail(data);
+    return await this.authService.queueResendVerificationEmail(data);
   }
 
   @Post('login')
