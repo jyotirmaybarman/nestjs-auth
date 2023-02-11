@@ -8,7 +8,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { BullModule } from '@nestjs/bull';
+import { QueueModule } from './providers/queue/queue.module';
 
 
 @Module({
@@ -45,7 +45,7 @@ import { BullModule } from '@nestjs/bull';
           }
         },
         template:{
-          dir: join(__dirname, 'providers', 'emails'),
+          dir: join(__dirname, 'providers', 'email', 'templates'),
           adapter: new HandlebarsAdapter(),
           options:{
             strict: true
@@ -56,16 +56,7 @@ import { BullModule } from '@nestjs/bull';
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
     }),
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        redis:{
-          host: configService.get('REDIS_HOST'),
-          port: configService.get('REDIS_PORT'),
-        }
-      })      
-    }),
+    QueueModule
   ],
 })
 export class AppModule {}
