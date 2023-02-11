@@ -58,17 +58,13 @@ export class AuthV1Service {
       },
     });
 
-    let verification_link = `${this.configService.get(
-      'FRONTEND_VERIFICATION_URL',
-    )}${verification_token}`;
-
     // send the email -> it will queue the email sending
     this.emailService.queueSendMail({
       template: 'verify-email',
       to: data.email,
       subject: 'Verify your email address',
       context: {
-        verification_link: verification_link,
+        verification_link: this.generateVerificationLink(verification_token),
         contact_email: 'contact@developerzilla.com',
       },
     });
@@ -93,9 +89,6 @@ export class AuthV1Service {
       },
     });
     if (!user) throw new NotFoundException('invalid email address');
-    let verification_link = `${this.configService.get(
-      'FRONTEND_VERIFICATION_URL',
-    )}${user.verification_token}`;
 
     // queue email sending
     this.emailService.queueSendMail({
@@ -103,7 +96,7 @@ export class AuthV1Service {
       to: data.email,
       subject: 'Verify your email address',
       context: {
-        verification_link: verification_link,
+        verification_link: this.generateVerificationLink(user.verification_token),
         contact_email: 'contact@developerzilla.com',
       },
     });
@@ -222,6 +215,10 @@ export class AuthV1Service {
     return {
       message: 'logged out successfully',
     };
+  }
+
+  generateVerificationLink(verification_token: string){
+    return `${this.configService.get('FRONTEND_URL')}/verify-email?token=${verification_token}`;
   }
 
   generateRefreshToken(
