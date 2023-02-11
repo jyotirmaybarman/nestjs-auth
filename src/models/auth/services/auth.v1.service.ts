@@ -18,7 +18,7 @@ import { JwtPayloadWithRt } from 'src/common/types/jwt-payload-with-rt.type';
 import { Cache } from 'cache-manager';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ResendVerificationDto } from '../dtos/resend-verification.dto';
-import { AuthQueueProducer } from '../../../providers/queue/producers/auth.producer';
+import { AuthQueueProducer } from '../../../providers/queue/producers/auth-queue.producer';
 import { SendEmailDto } from '../dtos/send-email.dto';
 
 @Injectable()
