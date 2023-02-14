@@ -9,7 +9,10 @@ import { RefreshTokenGuard } from '../../../common/guards/refresh-token.guard';
 import { Response } from 'express';
 import { JwtPayloadWithRt } from 'src/common/types/jwt-payload-with-rt.type';
 import { ResendVerificationDto } from '../dtos/resend-verification.dto';
-import { VerifyEmailDto } from '../dtos/vertify-email.dto';
+import { ValidateJwtTokenDto } from '../dtos/validate-jwt-token.dto';
+import { ValidateEmailDto } from '../dtos/validate-email.dto';
+import { ResetPasswordDto } from '../dtos/reset-password.dto';
+import { UpdateProfileDto } from '../dtos/update-profile.dto';
 
 @Controller('/api/v1/auth/')
 export class AuthV1Controller {
@@ -21,8 +24,8 @@ export class AuthV1Controller {
   }
 
   @Post('verify-email')
-  async verifyEmail(@Body() data: VerifyEmailDto){
-    return await this.authService.verifyEmail(data.verification_token);
+  async verifyEmail(@Body() data: ValidateJwtTokenDto){
+    return await this.authService.verifyEmail(data.token);
   }
 
   @Post('resend-verification')
@@ -82,5 +85,21 @@ export class AuthV1Controller {
         message: result.message,
         access_token: null,
       });
+  }
+
+  @Post('forgot-password')
+  async sendPasswordResetLink(data: ValidateEmailDto){
+    return await this.authService.sendPasswordResetLink(data);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() data: ResetPasswordDto){
+    return await this.authService.resetPassword(data);
+  }
+
+  @Post('update-profile')
+  @UseGuards(AccessTokenGuard)
+  async updateProfile(@Body() data: UpdateProfileDto, @CurrentUser() user: JwtPayload){
+    return await this.authService.updateProfile(data, user);
   }
 }

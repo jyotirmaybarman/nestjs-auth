@@ -18,6 +18,9 @@ import { JwtPayloadWithRt } from 'src/common/types/jwt-payload-with-rt.type';
 import { Cache } from 'cache-manager';
 import { ResendVerificationDto } from '../dtos/resend-verification.dto';
 import { EmailService } from '../../../providers/email/email.service';
+import { ValidateEmailDto } from '../dtos/validate-email.dto';
+import { ResetPasswordDto } from '../dtos/reset-password.dto';
+import { UpdateProfileDto } from '../dtos/update-profile.dto';
 
 @Injectable()
 export class AuthV1Service {
@@ -64,7 +67,7 @@ export class AuthV1Service {
       to: data.email,
       subject: 'Verify your email address',
       context: {
-        verification_link: this.generateVerificationLink(verification_token),
+        link: this.generateVerificationLink(verification_token),
         contact_email: 'contact@developerzilla.com',
       },
     });
@@ -90,13 +93,30 @@ export class AuthV1Service {
     });
     if (!user) throw new NotFoundException('invalid email address');
 
+    const new_verification_token = this.jwt.sign(
+      { email: user.email },
+      {
+        secret: this.configService.get('JWT_VERIFY_EMAIL_SECRET'),
+        expiresIn: '1h',
+      },
+    );
+
+    await this.usersService.updateOne({
+      where:{
+        email: user.email,
+      },
+      data:{
+        verification_token: new_verification_token,
+      }
+    });
+
     // queue email sending
     this.emailService.queueSendMail({
       template: 'verify-email',
       to: data.email,
       subject: 'Verify your email address',
       context: {
-        verification_link: this.generateVerificationLink(user.verification_token),
+        link: this.generateVerificationLink(new_verification_token),
         contact_email: 'contact@developerzilla.com',
       },
     });
@@ -217,8 +237,140 @@ export class AuthV1Service {
     };
   }
 
-  generateVerificationLink(verification_token: string){
-    return `${this.configService.get('FRONTEND_URL')}/verify-email?token=${verification_token}`;
+  async sendPasswordResetLink(data: ValidateEmailDto) {
+    const user = await this.usersService.findOne({
+      where: {
+        email: data.email,
+        verified: true,
+      },
+    });
+
+    if (!user)
+      return {
+        message: 'reset link will be sent shortly',
+      };
+
+    const reset_token = this.jwt.sign(
+      {
+        email: user.email,
+      },
+      {
+        secret: this.configService.get('JWT_RESET_TOKEN_SECRET'),
+        expiresIn: "10m"
+      },
+    );
+
+    await this.usersService.updateOne({
+      where: {
+        id: user.id,
+      },
+      data: {
+        reset_token,
+      },
+    });
+
+    const reset_link = `${this.configService.get(
+      'FRONTEND_URL',
+    )}/reset-password?token=${reset_token}`;
+
+    // send the reset link
+    this.emailService.queueSendMail({
+      to: user.email,
+      subject: 'Reset Password',
+      template: 'reset-password',
+      context: {
+        link: reset_link,
+        contact_email: 'contact@developerzilla.com',
+      },
+    });
+
+    return {
+      message: 'reset link will be sent shortly',
+    };
+  }
+
+  async resetPassword(data: ResetPasswordDto) {
+    const valid_token = await this.jwt.verifyAsync(data.token, {
+      secret: this.configService.get('JWT_RESET_TOKEN_SECRET'),
+    });
+
+    if (!valid_token)
+      return {
+        message: 'invalid reset token',
+      };
+
+    const user = await this.usersService.findOneOrFail({
+      where: {
+        reset_token: data.token,
+      },
+    });
+
+    const hased_password = await bcrypt.hash(data.password, 13);
+
+    await this.usersService.updateOne({
+      where: {
+        email: user.email,
+      },
+      data: {
+        reset_token: null,
+        password: hased_password,
+      },
+    });
+
+    return {
+      message: 'password reset successful',
+    };
+  }
+
+  async updateProfile(data: UpdateProfileDto, user: JwtPayload) {
+    let email_updated = false;
+    if(data.email != user.email) {
+      email_updated = true;
+      const verify_token = this.jwt.sign({
+        email: data.email,
+      },
+      {
+        secret: this.configService.get('JWT_VERIFY_EMAIL_SECRET'),
+        expiresIn: "10m"
+      });
+      this.emailService.queueSendMail({
+        to: data.email,
+        template: "verify-email",
+        subject: "Verify Email Address",
+        context:{
+          link: `${this.configService.get('FRONTEND_URL')}/verify-email?token=${verify_token}`,
+          contact_email: "contact@developerzilla.com",
+        }
+      });
+    }
+
+    const updateData = {
+      ...(data.email && { new_email: data.email }),
+      ...(data.first_name && { first_name: data.first_name }),
+      ...(data.last_name && { last_name: data.last_name }),
+      ...(data.bio && { bio: data.bio }),
+    };
+
+    await this.usersService.updateOne({
+      where: {
+        email: user.email,
+      },
+      data:updateData
+    });
+    if(email_updated){
+      return {
+        message: "profile updated, verification link sent to new email address"
+      }
+    }
+    return {
+      message: "profile updated"
+    }
+  }
+
+  generateVerificationLink(verification_token: string) {
+    return `${this.configService.get(
+      'FRONTEND_URL',
+    )}/verify-email?token=${verification_token}`;
   }
 
   generateRefreshToken(
