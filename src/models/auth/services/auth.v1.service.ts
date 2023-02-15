@@ -4,7 +4,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { UsersV1Service } from '../../users/services/users.v1.service';
 import { RegisterDto } from '../dtos/register.dto';
@@ -182,17 +181,19 @@ export class AuthV1Service {
     let refresh_expiry = data.remember
       ? 1000 * 60 * 60 * 24 * 7
       : 1000 * 60 * 60 * 24;
+    let access_expiry = 1000*60*15; // 15 minutes
     const refresh_token = this.generateRefreshToken(
-      { email: user.email, sub: user.id },
+      { email: user.email, sub: user.id, role: user.role },
       { expiresIn: refresh_expiry },
     );
     const access_token = this.generateAccessToken(
-      { email: user.email, sub: user.id },
-      { expiresIn: '15m' },
+      { email: user.email, sub: user.id, role: user.role },
+      { expiresIn: access_expiry },
     );
 
     // add refresh_token to redis to maintain whitelist
-    await this.redis.set(user.id, refresh_token, refresh_expiry);
+    await this.redis.set(`refresh:${user.id}`, refresh_token, refresh_expiry);
+    await this.redis.set(`access:${user.id}`, access_token, access_expiry);
 
     return {
       refresh_token,
@@ -214,16 +215,12 @@ export class AuthV1Service {
   }
 
   async refreshAccessToken(user: JwtPayloadWithRt) {
-    const exists = await this.redis.get<string>(user.sub);
-
-    if (!exists || exists != user.refresh_token) {
-      throw new UnauthorizedException('invalid refresh token');
-    }
-
+    let access_expiry = 1000*60*15; // 15 minutes
     const access_token = this.generateAccessToken(
-      { email: user.email, sub: user.sub },
-      { expiresIn: '15m' },
+      { email: user.email, sub: user.sub, role: user.role },
+      { expiresIn: access_expiry },
     );
+    await this.redis.set(`access:${user.sub}`, access_token, access_expiry);
 
     return {
       access_token,
@@ -231,7 +228,8 @@ export class AuthV1Service {
   }
 
   async logout(user: JwtPayloadWithRt) {
-    await this.redis.del(user.sub);
+    await this.redis.del(`refresh:${user.sub}`);
+    await this.redis.del(`access:${user.sub}`);
     return {
       message: 'logged out successfully',
     };
@@ -374,7 +372,7 @@ export class AuthV1Service {
   }
 
   generateRefreshToken(
-    data: { sub: string; email: string },
+    data: { sub: string; email: string, role: string },
     options?: { expiresIn: string | number },
   ): string {
     let refresh_token = this.jwt.sign(data, {
@@ -385,7 +383,7 @@ export class AuthV1Service {
   }
 
   generateAccessToken(
-    data: { sub: string; email: string },
+    data: { sub: string; email: string, role: string },
     options?: { expiresIn: number | string },
   ): string {
     let access_token = this.jwt.sign(data, {
