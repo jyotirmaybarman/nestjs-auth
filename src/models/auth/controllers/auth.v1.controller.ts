@@ -13,6 +13,8 @@ import { ValidateJwtTokenDto } from '../dtos/validate-jwt-token.dto';
 import { ValidateEmailDto } from '../dtos/validate-email.dto';
 import { ResetPasswordDto } from '../dtos/reset-password.dto';
 import { UpdateProfileDto } from '../dtos/update-profile.dto';
+import { Serialize } from '../../../common/interceptors/serialize.interceptor';
+import { UserDto } from '../dtos/user.dto';
 
 @Controller('/api/v1/auth/')
 export class AuthV1Controller {
@@ -58,6 +60,7 @@ export class AuthV1Controller {
 
   @Get('me')
   @UseGuards(AccessTokenGuard)
+  @Serialize(UserDto)
   async getLoggedInProfile(@CurrentUser() user: JwtPayload) {
     return await this.authService.getLoggedInProfile(user);
   }
