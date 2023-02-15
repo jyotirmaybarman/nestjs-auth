@@ -88,7 +88,7 @@ export class AuthV1Controller {
   }
 
   @Post('forgot-password')
-  async sendPasswordResetLink(data: ValidateEmailDto){
+  async sendPasswordResetLink(@Body() data: ValidateEmailDto){
     return await this.authService.sendPasswordResetLink(data);
   }
 
