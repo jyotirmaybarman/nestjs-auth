@@ -315,6 +315,10 @@ export class AuthV1Service {
       },
     });
 
+    // logout the user after password reset
+    this.redis.del(`refresh:${user.id}`);
+    this.redis.del(`access:${user.id}`);
+
     return {
       message: 'password reset successful',
     };
